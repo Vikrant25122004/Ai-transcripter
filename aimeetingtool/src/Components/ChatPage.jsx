@@ -1,81 +1,56 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import "./ChatPage.css";
+import ReactMarkdown from "react-markdown";
 
 function ChatPage() {
-  const [conversations, setConversations] = useState([]); // sidebar list
-  const [activeChatId, setActiveChatId] = useState(null); // selected chat
-  const [messages, setMessages] = useState([]); // messages in selected chat
+  const [activeChatId, setActiveChatId] = useState(null); // current conversation ID
+  const [messages, setMessages] = useState([]); // chat messages
   const [prompt, setPrompt] = useState(""); // input text
-  const [file, setFile] = useState(null); // PDF/DOCX file
   const [model, setModel] = useState("openai/gpt-oss-20b"); // default model
+  const [emailTo, setEmailTo] = useState(""); // recipient email
 
   const jwt = localStorage.getItem("jwt");
 
-  // Load all conversations when page loads
-  useEffect(() => {
-    fetch("http://localhost:8080/user/getallmsgs", {
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => setConversations(data))
-      .catch((err) => console.error(err));
-  }, [jwt]);
-
-  // Load messages for selected chat
-  const loadMessages = (chatId) => {
-    setActiveChatId(chatId);
-    fetch(`http://localhost:8080/user/getmsg?id=${chatId}`, {
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => setMessages(data.messages || []))
-      .catch((err) => console.error(err));
-  };
-
-  // Send text / pdf / docx
+  // Send text only with conversation ID
   const handleSend = async () => {
-    if (!prompt && !file) return;
+    if (!prompt) return;
 
     try {
-      let response;
-      if (file) {
-        const formData = new FormData();
-        formData.append("id", activeChatId || ""); // "" = new chat
-        formData.append("prompt", prompt);
-        formData.append("model", model);
-        formData.append(file.type.includes("pdf") ? "pdf" : "docx", file);
-
-        const url = file.type.includes("pdf")
-          ? "http://localhost:8080/user/sendtranscripterpdf"
-          : "http://localhost:8080/user/sendtranscripterdocx";
-
-        response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-          },
-          body: formData,
-        });
-      } else {
-        response = await fetch("http://localhost:8080/user/sendtranscriptertext?id=" + (activeChatId || ""), {
+      const response = await fetch(
+        `http://localhost:8080/user/sendtranscriptertext?id=${activeChatId || ""}&model=${model}`,
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${jwt}`,
           },
           body: JSON.stringify(prompt),
-        });
-      }
+        }
+      );
 
       if (response.ok) {
-        const data = await response.text();
-        setMessages((prev) => [...prev, { role: "user", content: prompt }, { role: "assistant", content: data }]);
+        const data = await response.json();
+        const conversationId = data[0];
+        const apiResponseString = data[1];
+
+        let apiResponseJson = {};
+        try {
+          apiResponseJson = JSON.parse(apiResponseString);
+        } catch (err) {
+          console.error("Failed to parse API response JSON:", err);
+        }
+
+        const assistantMessage =
+          apiResponseJson.choices?.[0]?.message?.content || "No response";
+
+        setActiveChatId(conversationId);
+
+        setMessages((prev) => [
+          ...prev,
+          { role: "user", content: prompt },
+          { role: "assistant", content: assistantMessage },
+        ]);
         setPrompt("");
-        setFile(null);
       } else {
         console.error("Failed to send:", await response.text());
       }
@@ -84,55 +59,124 @@ function ChatPage() {
     }
   };
 
+  // Start a new chat
+  const handleNewChat = () => {
+    setActiveChatId(null);
+    setMessages([]);
+    setPrompt("");
+  };
+
+  // Mailto email sender
+  const handleMailto = (email, subject, body) => {
+    if (!email) {
+      alert("Please enter recipient email first.");
+      return;
+    }
+    const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(
+      subject
+    )}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoUrl;
+  };
+
+  // Logout functionality
+  const handleLogout = () => {
+    localStorage.removeItem("jwt");
+    // Redirect to login page or home
+    window.location.href = "/"; // adjust path as needed
+  };
+
   return (
-    <div className="chat-container">
-      {/* Sidebar */}
-      <div className="sidebar">
-        <h3>Conversations</h3>
-        <button onClick={() => setActiveChatId(null)}>+ New Chat</button>
-        <ul>
-          {conversations.map((c) => (
-            <li
-              key={c.id}
-              className={activeChatId === c.id ? "active" : ""}
-              onClick={() => loadMessages(c.id)}
-            >
-              Chat {c.id}
-            </li>
-          ))}
-        </ul>
+    <div className="chat-page">
+      {/* Top bar with Logout and New Chat buttons */}
+      <div className="top-bar" style={{ display: "flex", justifyContent: "flex-end", padding: "12px 24px", backgroundColor: "#f3f4f6" }}>
+        <button
+          onClick={handleNewChat}
+          className="send-button"
+          style={{ backgroundColor: "#10b981", borderRadius: "20px", marginRight: "12px" }}
+        >
+          New Chat
+        </button>
+        <button
+          onClick={handleLogout}
+          className="send-button"
+          style={{ backgroundColor: "#ef4444", borderRadius: "20px" }}
+        >
+          Logout
+        </button>
       </div>
 
-      {/* Chat Window */}
-      <div className="chat-window">
-        <div className="messages">
-          {messages.map((m, i) => (
-            <div key={i} className={`message ${m.role}`}>
-              <strong>{m.role}:</strong> {m.content}
+      {/* Main chat area */}
+      <section className="chat-area">
+        <div className="messages-container">
+          {messages.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`message ${msg.role === "assistant" ? "assistant" : "user"}`}
+            >
+              {msg.role === "assistant" ? (
+                <>
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  <button
+                    onClick={() =>
+                      handleMailto(emailTo, "Chat Response", msg.content)
+                    }
+                    className="email-send-button"
+                  >
+                    Send this as Email
+                  </button>
+                </>
+              ) : (
+                msg.content
+              )}
             </div>
           ))}
         </div>
 
-        {/* Controls */}
-        <div className="chat-controls">
-          <select value={model} onChange={(e) => setModel(e.target.value)}>
-            <option value="openai/gpt-oss-20b">openai/gpt-oss-20b</option>
-            <option value="deepseek-r1-distill-llama-70b">deepseek-r1-distill-llama-70b</option>
-          </select>
-          <input
-            type="text"
+        {/* Input area */}
+        <div className="input-area">
+          <textarea
+            placeholder="Type your message here..."
             value={prompt}
-            placeholder="Type your prompt..."
             onChange={(e) => setPrompt(e.target.value)}
+            rows={3}
+            style={{ width: "100%" }}
           />
+
           <input
-            type="file"
-            accept=".pdf,.docx"
-            onChange={(e) => setFile(e.target.files[0])}
+            type="email"
+            placeholder="Recipient Email"
+            value={emailTo}
+            onChange={(e) => setEmailTo(e.target.value)}
+            style={{
+              marginLeft: "12px",
+              padding: "6px 8px",
+              borderRadius: "6px",
+              border: "1px solid #ccc",
+              width: "220px",
+              flexShrink: 0,
+            }}
           />
-          <button onClick={handleSend}>Send</button>
+
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="model-select"
+            style={{ marginLeft: "12px" }}
+          >
+            <option value="openai/gpt-oss-20b">GPT OSS 20B</option>
+            {/* Add more models if needed */}
+          </select>
+
+          <button
+            onClick={handleSend}
+            disabled={!prompt}
+            className="send-button"
+            style={{ marginLeft: "12px" }}
+          >
+            Send
+          </button>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

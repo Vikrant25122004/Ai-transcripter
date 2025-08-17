@@ -11,6 +11,7 @@ import com.aitranscripter.ai.transcripter.Service.ChatService;
 import com.aitranscripter.ai.transcripter.Service.UserService;
 
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.swing.Spring;
@@ -40,7 +41,7 @@ public class usercontroller {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
         try {
-            String response = chatService.sendprompt(id, prompt,model, username);
+            ArrayList<String> response = chatService.sendprompt(id, prompt,model, username);
             return new ResponseEntity<>(response,HttpStatus.OK);
         } catch (Exception e) {
             e.printStackTrace();
@@ -49,70 +50,7 @@ public class usercontroller {
         }
         
        
-    }
-    @PostMapping("/sendtranscripterpdf")
-    public ResponseEntity<?> sendpdf(@RequestParam String id,@RequestPart String prompt,@RequestPart MultipartFile pdf,@RequestParam String model) {
-        //TODO: process POST request
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        try {
-            String response = chatService.sendpdft(id, pdf, prompt, model, username);
-            return new ResponseEntity<>(response,HttpStatus.OK);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-            // TODO: handle exception
-        }
-        
-       
-    }
-    
-    @PostMapping("/sendtranscripterdocx")
-    public ResponseEntity<?> senddocx(@RequestParam String id,@RequestPart String prompt,@RequestPart MultipartFile pdf,@RequestParam String model) {
-        //TODO: process POST request
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        try {
-            String response = chatService.sendpdft(id, pdf, prompt, model, username);
-            return new ResponseEntity<>(response,HttpStatus.OK);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-            // TODO: handle exception
-        }
-        
-       
-    }
-    @GetMapping("/getmsg")
-    public ResponseEntity<?> getmsg(@RequestParam String id) {
-        try {
-            Optional<messages> messages = chatService.getmsgg(id);
-            return new ResponseEntity<>(messages,HttpStatus.OK);
-            
-        } catch (Exception e) {
-            e.printStackTrace();
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-            // TODO: handle exception
-        }
-    }
-    
-
-    @GetMapping("/getallmsgs")
-    public ResponseEntity<?> postMethodName() {
-        //TODO: process POST request
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        try {
-            ArrayList<messages> messages = userService.getallconersation(username);
-            return new ResponseEntity<>(messages,HttpStatus.OK);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-            // TODO: handle exception
-        }
-        
-    
-    }
+    }    
     
 
 
